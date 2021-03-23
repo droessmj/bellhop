@@ -8,12 +8,6 @@
                 "description": "The name of the function app that you wish to create."
             }
         },
-        "location": {
-            "type": "string",
-            "metadata": {
-                "description": "The location of the Bellhop deployment."
-            }
-        },
         "engineReaderGUID": {
             "type": "string",
             "defaultValue": "[newGuid()]",
@@ -38,7 +32,7 @@
             "type": "Microsoft.Resources/resourceGroups",
             "apiVersion": "2020-06-01",
             "name": "[concat(parameters('appName'), '-rg')]",
-            "location": "[parameters('location')]",
+            "location": "[deployment().location]",
             "properties": {}
         },
         {
