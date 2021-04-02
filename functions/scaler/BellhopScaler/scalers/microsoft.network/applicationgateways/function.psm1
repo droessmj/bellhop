@@ -58,6 +58,9 @@ function Update-Resource {
             if ( $tagData.setData.Capacity ) { $config.Add("Capacity", $tagData.setData.Capacity) }
             else{
                 # autoscale capacities should not be reachable if manual capacity is specified
+
+                # probably an opportunity for more checks here -- autoscale is only valid with v2 SKUs and max must be -gte min
+                # otherwise we'll see some issues
                 if ( $tagData.setData.MinCapacity ) { $config.Add("MinCapacity", $tagData.setData.MinCapacity) }
                 if ( $tagData.setData.MaxCapacity ) { $config.Add("MaxCapacity", $tagData.setData.MaxCapacity) }
             }
