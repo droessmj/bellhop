@@ -1,5 +1,5 @@
 #
-# AZURE VIRTUAL MACHINE SCALE FUNCTION
+# AZURE APPLICATION GATEWAY SCALE FUNCTION
 #
 
 function Update-Resource {
@@ -23,44 +23,30 @@ function Update-Resource {
     # Set preference variables
     $ErrorActionPreference = "Stop"
 
-    $sizeMap = @{
-        Standard_Small      = "Small"
-        Standard_Medium     = "Medium"
-        Standard_Large      = "Large"
-        Standard_v2         = "Standard_v2"
-        WAF_Medium          = "WAF_Medium"
-        WAF_Large           = "WAF_Large"
-        WAF_v2              = "WAF_v2"
-    }
-
-    $baseData = @{
-        ResourceGroupName = $graphData.resourceGroup
-        Name = $graphData.name
-    }
-
-    $config = @{ }
-    $tags = $tagData.tags
+    $config = Get-AzApplicationGateway -Name $graphData.Name -ResourceGroupName $graphData.resourceGroup
 
     switch ($direction) {
         'up' {
-            Write-Host "Scaling Application Gateway Size: '$($graphData.name)' to Tier: '$($tagData.saveData.Tier)'"
+            Write-Host "Scaling Application Gateway Size: '$($graphData.name)' to Tier: '$($tagData.saveData.tier)'"
 
-            $config = $baseData + $tagData.saveData
+            #there's probably a more elegant way to do this, but for now we're starting with the brutish approach
+            if ($tagData.saveData.tier){$config.sku.tier = $tagData.saveData.tier}
+            if ($tagData.saveData.capacity){$config.sku.capacity = $tagData.saveData.capacity}
+            if ($tagData.saveData.minCapacity){$config.autoscaleConfiguration.minCapacity = $tagData.saveData.minCapacity}
+            if ($tagData.saveData.maxCapacity){$config.autoscaleConfiguration.maxCapacity = $tagData.saveData.maxCapacity}
         }
 
         'down' {
-            Write-Host "Scaling Application Gateway Size: '$($graphData.name)' to Tier: '$($tagData.setData.Tier)'"
+            Write-Host "Scaling Application Gateway Size: '$($graphData.name)' to Tier: '$($tagData.setData.tier)'"
 
-            $config = @{
-                Tier = $tagData.setData.Tier
-            }
+            $config.Sku.Tier = $tagData.setData.tier
 
             $saveData = @{
                 Tier = $graphData.sku.tier
             }
 
-            if ( $tagData.setData.Capacity ) { 
-                $config.Add("Capacity", $tagData.setData.Capacity) 
+            if ( $tagData.setData.Keys -Contains "Capacity") { 
+                $config.Sku.Capacity = $tagData.setData.capacity
 
                 $saveData += @{
                     Capacity = $graphData.sku.capacity
@@ -69,29 +55,31 @@ function Update-Resource {
                 # autoscale capacities should not be reachable if manual capacity is specified
 
                 # autoscale is only valid with v2 SKUs 
-                if($graphData.sku.tier -eq "Standard_v2" -or $graphData.sku.tier -eq "WAF_v2") {
+                if($tagData.setData.tier -eq "Standard_v2" -or $tagData.setData.tier -eq "WAF_v2") {
                     # maybe in the future should add a check for max -gte to min
-                    if ( $tagData.setData.MinCapacity ) { $config.Add("MinCapacity", $tagData.setData.MinCapacity) }
-                    if ( $tagData.setData.MaxCapacity ) { $config.Add("MaxCapacity", $tagData.setData.MaxCapacity) }
+                    if ( $tagData.setData.minCapacity -and $tagData.setData.maxCapacity) { 
+                        $config.AutoscaleConfiguration.MinCapacity = $tagData.setData.minCapacity
+                        $config.AutoscaleConfiguration.MaxCapacity = $tagData.setData.maxCapacity
 
-                    $saveData += @{
-                        MinCapacity = $graphData.autoscaleConfiguration.minCapacity
-                        MaxCapacity = $graphData.autoscaleConfiguration.maxCapacity
+                        $saveData += @{
+                            MinCapacity = $graphData.autoscaleConfiguration.minCapacity
+                            MaxCapacity = $graphData.autoscaleConfiguration.maxCapacity
+                        }
                     }
                 }
             }
 
-            $config += $baseData
-            $tags += Set-SaveTags $saveData
+            $config.Tag += Set-SaveTags $saveData
         }
     }
 
     # Scale the Gateway
     try {
-        Set-AzApplicationGateway @config -Tag $tags
+        Set-AzApplicationGateway -ApplicationGateway $config
     }
     catch {
         Write-Host "Error scaling Application Gateway: $($graphData.name)"
+        write-Host $_
         Write-Host "($($Error.exception.GetType().fullname)) - $($PSItem.ToString())"
         # throw $PSItem
         Exit
