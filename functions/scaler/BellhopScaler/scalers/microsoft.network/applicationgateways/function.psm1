@@ -35,7 +35,7 @@ function Update-Resource {
 
     $baseData = @{
         ResourceGroupName = $graphData.resourceGroup
-        Name = $graphData.Name
+        Name = $graphData.name
     }
 
     $config = @{ }
@@ -55,22 +55,30 @@ function Update-Resource {
                 Tier = $tagData.setData.Tier
             }
 
-            if ( $tagData.setData.Capacity ) { $config.Add("Capacity", $tagData.setData.Capacity) }
-            else{
-                # autoscale capacities should not be reachable if manual capacity is specified
-
-                # probably an opportunity for more checks here -- autoscale is only valid with v2 SKUs and max must be -gte min
-                # otherwise we'll see some issues
-                if ( $tagData.setData.MinCapacity ) { $config.Add("MinCapacity", $tagData.setData.MinCapacity) }
-                if ( $tagData.setData.MaxCapacity ) { $config.Add("MaxCapacity", $tagData.setData.MaxCapacity) }
+            $saveData = @{
+                Tier = $graphData.sku.tier
             }
 
-            
-            $saveData = @{
-                Tier        = $graphData.sku.tier
-                Capacity    = $graphData.sku.capacity
-                MinCapacity = $graphData.autoscaleConfiguration.minCapacity
-                MaxCapacity = $graphData.autoscaleConfiguration.maxCapacity
+            if ( $tagData.setData.Capacity ) { 
+                $config.Add("Capacity", $tagData.setData.Capacity) 
+
+                $saveData += @{
+                    Capacity = $graphData.sku.capacity
+                }
+            } else{
+                # autoscale capacities should not be reachable if manual capacity is specified
+
+                # autoscale is only valid with v2 SKUs 
+                if($graphData.sku.tier -eq "Standard_v2" -or $graphData.sku.tier -eq "WAF_v2") {
+                    # maybe in the future should add a check for max -gte to min
+                    if ( $tagData.setData.MinCapacity ) { $config.Add("MinCapacity", $tagData.setData.MinCapacity) }
+                    if ( $tagData.setData.MaxCapacity ) { $config.Add("MaxCapacity", $tagData.setData.MaxCapacity) }
+
+                    $saveData += @{
+                        MinCapacity = $graphData.autoscaleConfiguration.minCapacity
+                        MaxCapacity = $graphData.autoscaleConfiguration.maxCapacity
+                    }
+                }
             }
 
             $config += $baseData
