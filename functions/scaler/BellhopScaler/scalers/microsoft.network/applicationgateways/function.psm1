@@ -30,6 +30,8 @@ function Update-Resource {
             Write-Host "Scaling Application Gateway Size: '$($graphData.name)' to Tier: '$($tagData.saveData.tier)'"
 
             #there's probably a more elegant way to do this, but for now we're starting with the brutish approach
+
+            # TODO: tier and name need to match up...
             if ($tagData.saveData.tier){$config.sku.tier = $tagData.saveData.tier}
             if ($tagData.saveData.capacity){$config.sku.capacity = $tagData.saveData.capacity}
             if ($tagData.saveData.minCapacity){$config.autoscaleConfiguration.minCapacity = $tagData.saveData.minCapacity}
@@ -39,6 +41,7 @@ function Update-Resource {
         'down' {
             Write-Host "Scaling Application Gateway Size: '$($graphData.name)' to Tier: '$($tagData.setData.tier)'"
 
+            # TODO: tier and name need to match up...
             $config.Sku.Tier = $tagData.setData.tier
 
             $saveData = @{
@@ -58,6 +61,7 @@ function Update-Resource {
                 if($tagData.setData.tier -eq "Standard_v2" -or $tagData.setData.tier -eq "WAF_v2") {
                     # maybe in the future should add a check for max -gte to min
                     if ( $tagData.setData.minCapacity -and $tagData.setData.maxCapacity) { 
+                        #TODO: min must be -lte max
                         $config.AutoscaleConfiguration.MinCapacity = $tagData.setData.minCapacity
                         $config.AutoscaleConfiguration.MaxCapacity = $tagData.setData.maxCapacity
 
