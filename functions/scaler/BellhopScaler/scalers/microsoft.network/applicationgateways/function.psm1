@@ -23,6 +23,12 @@ function Update-Resource {
     # Set preference variables
     $ErrorActionPreference = "Stop"
 
+    # TODO: build tier map
+
+    # TODO: When running every minute, this scaling ends up superceding itself as it generally doesn't complete in under one minute. May need a way to check the resoruce 
+    #       an in-process scaling operation and bail if in place...
+    
+    # need to populate the gateway model from the graph data instead of doing a lookup. Likely requires a helper function and some testing as it's not straightforward
     $config = Get-AzApplicationGateway -Name $graphData.name -ResourceGroupName $graphData.resourceGroup
 
     switch ($direction) {
@@ -31,7 +37,7 @@ function Update-Resource {
 
             #there's probably a more elegant way to do this, but for now we're starting with the brutish approach
 
-            # TODO: tier and name need to match up...
+            # TODO: tier and name need to match up correctly
             if ($tagData.saveData.tier){$config.sku.tier = $tagData.saveData.tier}
             if ($tagData.saveData.capacity){$config.sku.capacity = $tagData.saveData.capacity}
             if ($tagData.saveData.minCapacity){$config.autoscaleConfiguration.minCapacity = $tagData.saveData.minCapacity}
@@ -42,6 +48,7 @@ function Update-Resource {
             Write-Host "Scaling Application Gateway Size: '$($graphData.name)' to Tier: '$($tagData.setData.tier)'"
 
             # TODO: tier and name need to match up...
+            #       also need to add business logic which prevents scaling between v1 and v2 tiers as it does not seem to be supported            
             $config.Sku.Tier = $tagData.setData.tier
 
             $saveData = @{
