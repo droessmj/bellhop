@@ -23,7 +23,7 @@ function Update-Resource {
     # Set preference variables
     $ErrorActionPreference = "Stop"
 
-    $config = Get-AzApplicationGateway -Name $graphData.Name -ResourceGroupName $graphData.resourceGroup
+    $config = Get-AzApplicationGateway -Name $graphData.name -ResourceGroupName $graphData.resourceGroup
 
     switch ($direction) {
         'up' {
