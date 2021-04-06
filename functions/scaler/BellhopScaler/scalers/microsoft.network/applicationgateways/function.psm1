@@ -99,6 +99,11 @@ function Update-Resource {
     Write-Host "Scaler function has completed successfully!"
 }
 
+# TODO: Helper function to instantiate AppGw object
+# sample code https://gist.github.com/NillsF/ca56e1123ef9a06c28f7bab73dd0a772
+# see also -- VM scaler
+
+
 function Set-SaveTags {
     param (
         $inTags
