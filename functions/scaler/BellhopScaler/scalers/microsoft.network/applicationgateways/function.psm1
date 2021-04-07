@@ -23,13 +23,15 @@ function Update-Resource {
     # Set preference variables
     $ErrorActionPreference = "Stop"
 
-    # TODO: build tier map
-
+    # TODO: build tier map to sku name
     # TODO: When running every minute, this scaling ends up superceding itself as it generally doesn't complete in under one minute. May need a way to check the resoruce 
     #       an in-process scaling operation and bail if in place...
     
     # need to populate the gateway model from the graph data instead of doing a lookup. Likely requires a helper function and some testing as it's not straightforward
-    $config = Get-AzApplicationGateway -Name $graphData.name -ResourceGroupName $graphData.resourceGroup
+    $config = Get-ApplicationGatewayConfig -graphData $graphData
+
+    # name, rgname, resource type, location, properties to patch
+    #$config = Get-AzApplicationGateway -Name $graphData.name -ResourceGroupName $graphData.resourceGroup
 
     switch ($direction) {
         'up' {
@@ -39,6 +41,7 @@ function Update-Resource {
 
             # TODO: tier and name need to match up correctly
             if ($tagData.saveData.tier){$config.sku.tier = $tagData.saveData.tier}
+            if ($tagData.saveData.SkuName){$config.sku.name = $tagData.saveData.skuName}
             if ($tagData.saveData.capacity){$config.sku.capacity = $tagData.saveData.capacity}
             if ($tagData.saveData.minCapacity){$config.autoscaleConfiguration.minCapacity = $tagData.saveData.minCapacity}
             if ($tagData.saveData.maxCapacity){$config.autoscaleConfiguration.maxCapacity = $tagData.saveData.maxCapacity}
@@ -50,16 +53,18 @@ function Update-Resource {
             # TODO: tier and name need to match up...
             #       also need to add business logic which prevents scaling between v1 and v2 tiers as it does not seem to be supported            
             $config.Sku.Tier = $tagData.setData.tier
+            $config.Sku.Name = $tagData.setData.skuName
 
             $saveData = @{
-                Tier = $graphData.sku.tier
+                SkuName = $graphData.properties.sku.name
+                Tier = $graphData.properties.sku.tier
             }
 
             if ( $tagData.setData.Keys -Contains "Capacity") { 
                 $config.Sku.Capacity = $tagData.setData.capacity
 
                 $saveData += @{
-                    Capacity = $graphData.sku.capacity
+                    Capacity = $graphData.properties.sku.capacity
                 }
             } else{
                 # autoscale capacities should not be reachable if manual capacity is specified
@@ -73,8 +78,8 @@ function Update-Resource {
                         $config.AutoscaleConfiguration.MaxCapacity = $tagData.setData.maxCapacity
 
                         $saveData += @{
-                            MinCapacity = $graphData.autoscaleConfiguration.minCapacity
-                            MaxCapacity = $graphData.autoscaleConfiguration.maxCapacity
+                            MinCapacity = $graphData.properties.autoscaleConfiguration.minCapacity
+                            MaxCapacity = $graphData.properties.autoscaleConfiguration.maxCapacity
                         }
                     }
                 }
@@ -86,7 +91,22 @@ function Update-Resource {
 
     # Scale the Gateway
     try {
-        Set-AzApplicationGateway -ApplicationGateway $config
+        #given limited scope it may be easy to take this approach to patch the remote resource...
+        #https://docs.microsoft.com/en-us/powershell/module/az.resources/set-azresource?view=azps-5.7.0
+
+        #TODO: need to get this to be a PSResource
+        $finalConfig = @{
+            Name = $config.Name
+            ResourceGroupName = $config.resourcegroup
+            ResourceType = "Microsoft.Network/applicationGateways"
+            Properties = @{
+                Sku = $config.Sku
+                AutoscaleConfiguration = $config.AutoscaleConfiguration
+            }
+        }
+
+        #convert config to PsResource and pipe to set-azresource with appropriate type info
+        Set-AzResource @finalConfig -UsePatchSemantics -Force
     }
     catch {
         Write-Host "Error scaling Application Gateway: $($graphData.name)"
@@ -99,10 +119,25 @@ function Update-Resource {
     Write-Host "Scaler function has completed successfully!"
 }
 
-# TODO: Helper function to instantiate AppGw object
-# sample code https://gist.github.com/NillsF/ca56e1123ef9a06c28f7bab73dd0a772
-# see also -- VM scaler
+function Get-ApplicationGatewayConfig{
+    param(
+        $graphData
+    )
 
+    $newGwObj = New-Object -TypeName Microsoft.Azure.Commands.Network.Models.PSApplicationGateway
+    $newGwObj.ResourceGroupName = $graphData.resourceGroup
+    $newGwObj.Name = $graphData.name
+    $newGwObj.Location = $graphData.location
+    $newGwObj.Sku = New-Object -TypeName Microsoft.Azure.Commands.Network.Models.PSApplicationGatewaySku
+    $newGwObj.Sku.Name = $graphData.properties.sku.name
+    $newGwObj.Sku.Tier = $graphData.properties.sku.tier
+    $newGwObj.Sku.Capacity = $graphData.properties.sku.capacity
+    $newGwObj.AutoscaleConfiguration = New-Object -TypeName Microsoft.Azure.Commands.Network.Models.PSApplicationGatewayAutoscaleConfiguration
+    $newGwObj.AutoscaleConfiguration.MinCapacity = $graphData.properties.autoscaleConfiguration.minCapacity
+    $newGwObj.AutoscaleConfiguration.MaxCapacity = $graphData.properties.autoscaleConfiguration.maxCapacity
+
+    return $newGwObj
+}
 
 function Set-SaveTags {
     param (
