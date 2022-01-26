@@ -1,4 +1,6 @@
 <!--
+
+[![Git](https://app.soluble.cloud/api/v1/public/badges/97bd5db3-124b-462c-8983-d06d144b48fe.svg?orgId=544861397342)](https://app.soluble.cloud/repos/details/github.com/droessmj/bellhop?orgId=544861397342)  
 ---
 page_type: sample
 languages:
